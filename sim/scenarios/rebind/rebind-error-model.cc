@@ -23,6 +23,9 @@ void RebindErrorModel::DoReset() {}
 
 void RebindErrorModel::SetRebindAddr(bool ra) { rebind_addr = ra; }
 
+const uint16_t USER_PORT_MIN = 1024;
+const uint16_t USER_PORT_MAX = 49151;
+
 void RebindErrorModel::DoRebind() {
   const Ipv4Address old_nat = nat;
   if (rebind_addr)
@@ -34,8 +37,26 @@ void RebindErrorModel::DoRebind() {
     // FIXME: this will abort if we run out of ports (= after 64K rebinds)
     assert(rev.size() < UINT16_MAX - 1);
     const uint16_t old_port = b.second;
+    uint16_t new_port_min;
+    uint16_t new_port_max;
+
+    // Keep the rebind port in the same port scope
+    if (old_port < USER_PORT_MIN) {
+        //System port
+        new_port_min = 1;
+        new_port_max = USER_PORT_MIN - 1;
+    } else if (old_port > USER_PORT_MAX) {
+        // Dynamic port
+        new_port_min = USER_PORT_MAX + 1;
+        new_port_max = UINT16_MAX;
+    } else {
+        // User port
+        new_port_min = USER_PORT_MIN;
+        new_port_max = USER_PORT_MAX;
+    }
+
     do
-      b.second = rng->GetInteger(1, UINT16_MAX);
+      b.second = rng->GetInteger(new_port_min, new_port_max);
     while (rev.find(b.second) != rev.end());
     rev[b.second] = b.first;
     rev[old_port] = 0;
